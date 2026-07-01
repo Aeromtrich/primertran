@@ -17,6 +17,16 @@ pip install -e .
 primertran
 ```
 
+PrimerTran opens an interactive terminal with a compact prompt and bottom status bar:
+
+```text
+› Translate this sentence.
+
+deepseek-v4-flash · /path/to/project · explain · /help
+```
+
+You can paste long text directly. PrimerTran compacts the preview and asks for confirmation before sending it.
+
 On first launch, PrimerTran asks for a DeepSeek API key and saves config to:
 
 ```text

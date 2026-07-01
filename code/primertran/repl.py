@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import os
 from getpass import getpass
+from pathlib import Path
+from textwrap import shorten
 
+from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit import PromptSession
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.text import Text
 
-from primertran.agent import TranslationInputError, TranslatorAgent
+from primertran.agent import MAX_INPUT_LENGTH, TranslationInputError, TranslatorAgent
 from primertran.config import (
     CONFIG_PATH,
     AppConfig,
@@ -24,6 +27,8 @@ from primertran.config import (
 from primertran.providers import ProviderError
 
 console = Console()
+LONG_INPUT_PREVIEW = 180
+LONG_INPUT_THRESHOLD = 500
 
 BANNER = r"""
 ╭────────────────────────────────────────────────────────╮
@@ -44,15 +49,22 @@ BANNER = r"""
 
 def run_repl() -> None:
     config = load_config()
-    show_banner(config)
+    show_banner(config, compact=True)
 
     if not config.has_api_key:
         configure_first_run(config)
 
-    session = PromptSession()
+    session = PromptSession(
+        bottom_toolbar=lambda: bottom_toolbar(config),
+        multiline=False,
+        wrap_lines=True,
+    )
     while True:
         try:
-            raw = session.prompt("en> ")
+            raw = session.prompt(
+                [("class:prompt", "› ")],
+                enable_suspend=True,
+            )
         except (EOFError, KeyboardInterrupt):
             console.print("\n已退出 PrimerTran。")
             return
@@ -66,10 +78,16 @@ def run_repl() -> None:
                 return
             continue
 
-        translate_and_print(config, text)
+        text = prepare_input(text)
+        if text:
+            translate_and_print(config, text)
 
 
-def show_banner(config: AppConfig) -> None:
+def show_banner(config: AppConfig, *, compact: bool = False) -> None:
+    if compact:
+        console.print("[bold cyan]PrimerTran[/bold cyan] [dim]English -> Chinese Agent[/dim]")
+        console.print("[dim]Type /help for commands. Paste long text directly; PrimerTran will compact the preview.[/dim]\n")
+        return
     console.print(Text(BANNER, style="bold cyan"))
     console.print()
     console.print(f"[bold]Model[/bold]  {config.model}")
@@ -99,7 +117,7 @@ def handle_command(command: str, config: AppConfig, session: PromptSession) -> b
         show_help()
     elif name == "/clear":
         os.system("cls" if os.name == "nt" else "clear")
-        show_banner(config)
+        show_banner(config, compact=True)
     elif name == "/key":
         update_key(config)
     elif name == "/provider":
@@ -134,6 +152,8 @@ def show_help() -> None:
 /config    查看当前配置摘要
 /reset     重置本地配置
 /multi     粘贴多行英文内容，使用 /end 结束
+
+提示：可以直接粘贴长文本。多行或较长输入会先显示压缩预览，再确认发送。
 """
     console.print(Panel(help_text, title="PrimerTran Commands", border_style="cyan"))
 
@@ -209,6 +229,38 @@ def read_multiline(session: PromptSession) -> str:
         lines.append(line)
 
 
+def prepare_input(text: str) -> str:
+    if not is_long_or_multiline(text):
+        return text
+
+    preview = compact_preview(text)
+    line_count = text.count("\n") + 1
+    console.print()
+    console.print(
+        Panel(
+            f"{preview}\n\n[dim]{line_count} lines · {len(text)} chars[/dim]",
+            title="Input Preview",
+            border_style="cyan",
+        )
+    )
+    if len(text) > MAX_INPUT_LENGTH:
+        console.print(f"[yellow]输入超过 {MAX_INPUT_LENGTH} 字符，请拆分后再翻译。[/yellow]")
+        return ""
+    if not Confirm.ask("发送这段内容进行翻译？", default=True):
+        console.print("[yellow]已取消。[/yellow]")
+        return ""
+    return text
+
+
+def is_long_or_multiline(text: str) -> bool:
+    return "\n" in text or len(text) >= LONG_INPUT_THRESHOLD
+
+
+def compact_preview(text: str) -> str:
+    normalized = " ".join(part.strip() for part in text.splitlines() if part.strip())
+    return shorten(normalized, width=LONG_INPUT_PREVIEW, placeholder=" ...")
+
+
 def translate_and_print(config: AppConfig, text: str) -> None:
     if not config.has_api_key:
         console.print("[yellow]未配置 API Key，请先使用 /key 设置。[/yellow]")
@@ -226,6 +278,28 @@ def translate_and_print(config: AppConfig, text: str) -> None:
         console.print()
         console.print(output)
         console.print()
+
+
+def bottom_toolbar(config: AppConfig) -> HTML:
+    cwd = shorten_path(Path.cwd())
+    return HTML(
+        f"<style bg='ansibrightblack' fg='ansiyellow'> {config.model} </style>"
+        f"<style bg='ansibrightblack' fg='ansibrightblack'> · </style>"
+        f"<style bg='ansibrightblack' fg='ansigreen'> {cwd} </style>"
+        f"<style bg='ansibrightblack' fg='ansiwhite'> · {config.style} · /help </style>"
+    )
+
+
+def shorten_path(path: Path, max_length: int = 56) -> str:
+    text = str(path)
+    if len(text) <= max_length:
+        return text
+    home = str(Path.home())
+    if text.startswith(home):
+        text = "~" + text[len(home) :]
+    if len(text) <= max_length:
+        return text
+    return "..." + text[-(max_length - 3) :]
 
 
 def choose_option(title: str, options: tuple[str, ...], current: str) -> str:
