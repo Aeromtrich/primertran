@@ -29,6 +29,7 @@ from primertran.providers import ProviderError
 console = Console()
 LONG_INPUT_PREVIEW = 180
 LONG_INPUT_THRESHOLD = 500
+INPUT_RULE_MIN_WIDTH = 40
 
 BANNER = r"""
 ╭────────────────────────────────────────────────────────╮
@@ -49,7 +50,7 @@ BANNER = r"""
 
 def run_repl() -> None:
     config = load_config()
-    show_banner(config, compact=True)
+    show_banner(config)
 
     if not config.has_api_key:
         configure_first_run(config)
@@ -62,9 +63,10 @@ def run_repl() -> None:
     while True:
         try:
             raw = session.prompt(
-                [("class:prompt", "› ")],
+                input_prompt(),
                 enable_suspend=True,
             )
+            show_input_rule()
         except (EOFError, KeyboardInterrupt):
             console.print("\n已退出 PrimerTran。")
             return
@@ -96,6 +98,21 @@ def show_banner(config: AppConfig, *, compact: bool = False) -> None:
     console.print()
 
 
+def input_rule() -> str:
+    return "─" * max(console.width, INPUT_RULE_MIN_WIDTH)
+
+
+def input_prompt() -> list[tuple[str, str]]:
+    return [
+        ("class:line", f"{input_rule()}\n"),
+        ("class:prompt", "› "),
+    ]
+
+
+def show_input_rule() -> None:
+    console.print(input_rule(), style="dim")
+
+
 def configure_first_run(config: AppConfig) -> None:
     console.print("[yellow]未检测到 DeepSeek API Key。[/yellow]\n")
     console.print("PrimerTran 当前使用 DeepSeek。")
@@ -117,7 +134,7 @@ def handle_command(command: str, config: AppConfig, session: PromptSession) -> b
         show_help()
     elif name == "/clear":
         os.system("cls" if os.name == "nt" else "clear")
-        show_banner(config, compact=True)
+        show_banner(config)
     elif name == "/key":
         update_key(config)
     elif name == "/provider":

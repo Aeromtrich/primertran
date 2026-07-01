@@ -18,6 +18,16 @@ Run:
 primertran
 ```
 
+If `primertran` only works after activating `.venv`, add the virtual
+environment's `bin` directory to your shell path:
+
+```bash
+echo 'export PATH="/Volumes/Software/Code/primertran/.venv/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+After that, `primertran` can be run from any directory.
+
 Install test dependencies:
 
 ```bash
