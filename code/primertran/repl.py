@@ -38,22 +38,12 @@ LONG_INPUT_PREVIEW = 180
 LONG_INPUT_THRESHOLD = 500
 INPUT_RULE_WIDTH = 56
 INPUT_SUMMARY_SUFFIX = "c"
+BANNER_WIDTH = 72
+BANNER_LEFT_WIDTH = 31
+BANNER_RIGHT_WIDTH = 32
 
-BANNER = r"""
-╭────────────────────────────────────────────────────────╮
-│                                                        │
-│   ██████╗ ██████╗ ██╗███╗   ███╗███████╗██████╗      │
-│   ██╔══██╗██╔══██╗██║████╗ ████║██╔════╝██╔══██╗     │
-│   ██████╔╝██████╔╝██║██╔████╔██║█████╗  ██████╔╝     │
-│   ██╔═══╝ ██╔══██╗██║██║╚██╔╝██║██╔══╝  ██╔══██╗     │
-│   ██║     ██║  ██║██║██║ ╚═╝ ██║███████╗██║  ██║     │
-│   ╚═╝     ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝     │
-│                                                        │
-│                    PrimerTran                         │
-│              English -> Chinese Agent                 │
-│                                                        │
-╰────────────────────────────────────────────────────────╯
-""".strip("\n")
+BANNER_TITLE = "PrimerTran"
+BANNER_SUBTITLE = "English -> Chinese Agent"
 
 
 class CompactInputDisplayProcessor(Processor):
@@ -121,12 +111,40 @@ def show_banner(config: AppConfig, *, compact: bool = False) -> None:
         console.print("[bold cyan]PrimerTran[/bold cyan] [dim]English -> Chinese Agent[/dim]")
         console.print("[dim]Type /help for commands. Paste long text directly; PrimerTran will compact the preview.[/dim]\n")
         return
-    console.print(Text(BANNER, style="bold cyan"))
+    console.print(build_banner(config))
     console.print()
-    console.print(f"[bold]Model[/bold]  {config.model}")
-    console.print(f"[bold]Style[/bold]  {config.style}")
-    console.print("[bold]Type[/bold]   /help for commands")
-    console.print()
+
+
+def build_banner(config: AppConfig) -> Panel:
+    left_lines = [
+        BANNER_TITLE,
+        "Welcome back!",
+        BANNER_SUBTITLE,
+        "",
+        "Ready for translation",
+    ]
+    right_lines = [
+        "Session",
+        f"Model  {config.model}",
+        f"Style  {config.style}",
+        "Type   /help",
+        "Enter to send",
+    ]
+
+    body = Text()
+    for index, (left, right) in enumerate(zip(left_lines, right_lines)):
+        if index:
+            body.append("\n")
+        body.append(f"{left:<{BANNER_LEFT_WIDTH}}", style="bold" if index < 2 else "dim")
+        body.append(" │ ", style="red")
+        body.append(f"{right:<{BANNER_RIGHT_WIDTH}}", style="bold red" if index == 0 else "")
+
+    return Panel(
+        body,
+        border_style="red",
+        padding=(0, 1),
+        width=min(BANNER_WIDTH, max(console.width, INPUT_RULE_WIDTH)),
+    )
 
 
 def input_rule() -> str:

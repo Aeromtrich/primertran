@@ -2,7 +2,8 @@ from pathlib import Path
 
 from primertran.config import AppConfig
 from primertran.repl import (
-    BANNER,
+    BANNER_SUBTITLE,
+    build_banner,
     compact_preview,
     console,
     input_bottom_rule,
@@ -30,15 +31,27 @@ def test_shorten_path_keeps_short_path() -> None:
     assert shorten_path(Path("/tmp/project"), max_length=20) == "/tmp/project"
 
 
-def test_show_banner_prints_full_logo() -> None:
+def test_show_banner_prints_compact_panel() -> None:
     with console.capture() as capture:
         show_banner(AppConfig(model="deepseek-v4-flash", style="explain"))
 
     output = capture.get()
-    assert BANNER.splitlines()[0] in output
     assert "PrimerTran" in output
-    assert "Model  deepseek-v4-flash" in output
+    assert BANNER_SUBTITLE in output
+    assert "deepseek-v4-flash" in output
     assert "Style  explain" in output
+
+
+def test_build_banner_contains_session_info() -> None:
+    banner = build_banner(AppConfig(model="deepseek-v4-flash", style="explain"))
+
+    with console.capture() as capture:
+        console.print(banner)
+
+    output = capture.get()
+    assert "Session" in output
+    assert "Type   /help" in output
+    assert "│" in output
 
 
 def test_input_bottom_rule_matches_horizontal_rule() -> None:
