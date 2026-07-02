@@ -5,8 +5,15 @@ from getpass import getpass
 from pathlib import Path
 from textwrap import shorten
 
-from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.application import Application
+from prompt_toolkit.buffer import Buffer
 from prompt_toolkit import PromptSession
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.layout import HSplit, Layout, Window
+from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
+from prompt_toolkit.layout.dimension import Dimension
+from prompt_toolkit.layout.processors import Processor, Transformation, TransformationInput
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
@@ -29,7 +36,8 @@ from primertran.providers import ProviderError
 console = Console()
 LONG_INPUT_PREVIEW = 180
 LONG_INPUT_THRESHOLD = 500
-INPUT_RULE_MIN_WIDTH = 40
+INPUT_RULE_WIDTH = 56
+INPUT_SUMMARY_SUFFIX = "c"
 
 BANNER = r"""
 ╭────────────────────────────────────────────────────────╮
@@ -48,6 +56,37 @@ BANNER = r"""
 """.strip("\n")
 
 
+class CompactInputDisplayProcessor(Processor):
+    def apply_transformation(self, ti: TransformationInput) -> Transformation:
+        summary = summarize_input_display(ti.document.text)
+        if summary is None:
+            return Transformation(ti.fragments)
+
+        fragments = [("class:input", summary)]
+        summary_length = len(summary)
+        source_length = len(ti.document.text)
+
+        def source_to_display(position: int) -> int:
+            if source_length == 0:
+                return 0
+            if position >= source_length:
+                return summary_length
+            return min(summary_length, position)
+
+        def display_to_source(position: int) -> int:
+            if summary_length == 0:
+                return 0
+            if position >= summary_length:
+                return source_length
+            return min(source_length, position)
+
+        return Transformation(
+            fragments,
+            source_to_display=source_to_display,
+            display_to_source=display_to_source,
+        )
+
+
 def run_repl() -> None:
     config = load_config()
     show_banner(config)
@@ -55,18 +94,10 @@ def run_repl() -> None:
     if not config.has_api_key:
         configure_first_run(config)
 
-    session = PromptSession(
-        bottom_toolbar=lambda: bottom_toolbar(config),
-        multiline=False,
-        wrap_lines=True,
-    )
+    session = PromptSession(multiline=False, wrap_lines=False)
     while True:
         try:
-            raw = session.prompt(
-                input_prompt(),
-                enable_suspend=True,
-            )
-            show_input_rule()
+            raw = prompt_with_frame(config)
         except (EOFError, KeyboardInterrupt):
             console.print("\n已退出 PrimerTran。")
             return
@@ -99,18 +130,74 @@ def show_banner(config: AppConfig, *, compact: bool = False) -> None:
 
 
 def input_rule() -> str:
-    return "─" * max(console.width, INPUT_RULE_MIN_WIDTH)
+    return "─" * INPUT_RULE_WIDTH
 
 
-def input_prompt() -> list[tuple[str, str]]:
-    return [
-        ("class:line", f"{input_rule()}\n"),
-        ("class:prompt", "› "),
-    ]
+def input_bottom_rule() -> str:
+    return input_rule()
 
 
-def show_input_rule() -> None:
-    console.print(input_rule(), style="dim")
+def prompt_with_frame(config: AppConfig) -> str:
+    buffer = Buffer()
+    bindings = KeyBindings()
+
+    @bindings.add("enter")
+    def _(event) -> None:
+        event.app.exit(result=buffer.text)
+
+    @bindings.add("c-c")
+    def _(event) -> None:
+        raise KeyboardInterrupt
+
+    @bindings.add("c-d")
+    def _(event) -> None:
+        if not buffer.text:
+            raise EOFError
+
+    input_control = BufferControl(
+        buffer=buffer,
+        input_processors=[CompactInputDisplayProcessor()],
+    )
+    layout = Layout(
+        HSplit(
+            [
+                Window(
+                    content=FormattedTextControl([("class:line", input_rule())]),
+                    height=Dimension.exact(1),
+                    dont_extend_height=True,
+                ),
+                Window(
+                    content=input_control,
+                    height=Dimension.exact(1),
+                    dont_extend_height=True,
+                    wrap_lines=False,
+                    get_line_prefix=lambda line_number, wrap_count: [("class:prompt", "› ")],
+                ),
+                Window(
+                    content=FormattedTextControl([("class:line", input_bottom_rule())]),
+                    height=Dimension.exact(1),
+                    dont_extend_height=True,
+                ),
+                Window(
+                    content=FormattedTextControl(prompt_rprompt(config)),
+                    height=Dimension.exact(1),
+                    dont_extend_height=True,
+                    style="class:meta",
+                ),
+            ]
+        ),
+        focused_element=input_control,
+    )
+    app = Application(layout=layout, key_bindings=bindings, full_screen=False, mouse_support=False)
+    return app.run()
+
+
+def summarize_input_display(text: str) -> str | None:
+    if not text:
+        return None
+    if "\n" in text or len(text) >= LONG_INPUT_THRESHOLD:
+        return f"{len(text)}{INPUT_SUMMARY_SUFFIX}"
+    return None
 
 
 def configure_first_run(config: AppConfig) -> None:
@@ -297,13 +384,14 @@ def translate_and_print(config: AppConfig, text: str) -> None:
         console.print()
 
 
-def bottom_toolbar(config: AppConfig) -> HTML:
+def prompt_rprompt(config: AppConfig) -> HTML:
     cwd = shorten_path(Path.cwd())
     return HTML(
-        f"<style bg='ansibrightblack' fg='ansiyellow'> {config.model} </style>"
-        f"<style bg='ansibrightblack' fg='ansibrightblack'> · </style>"
-        f"<style bg='ansibrightblack' fg='ansigreen'> {cwd} </style>"
-        f"<style bg='ansibrightblack' fg='ansiwhite'> · {config.style} · /help </style>"
+        f"<style fg='ansibrightblack'>{config.model}</style>"
+        f"<style fg='ansibrightblack'> · </style>"
+        f"<style fg='ansibrightblack'>{cwd}</style>"
+        f"<style fg='ansibrightblack'> · </style>"
+        f"<style fg='ansibrightblack'>{config.style}</style>"
     )
 
 

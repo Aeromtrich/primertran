@@ -5,10 +5,12 @@ from primertran.repl import (
     BANNER,
     compact_preview,
     console,
-    input_prompt,
+    input_bottom_rule,
     is_long_or_multiline,
+    prompt_rprompt,
     shorten_path,
     show_banner,
+    summarize_input_display,
 )
 
 
@@ -39,10 +41,27 @@ def test_show_banner_prints_full_logo() -> None:
     assert "Style  explain" in output
 
 
-def test_input_prompt_starts_with_rule_and_prompt_marker() -> None:
-    prompt = input_prompt()
+def test_input_bottom_rule_matches_horizontal_rule() -> None:
+    rule = input_bottom_rule()
 
-    assert prompt[0][0] == "class:line"
-    assert prompt[0][1].endswith("\n")
-    assert set(prompt[0][1].strip()) == {"─"}
-    assert prompt[1] == ("class:prompt", "› ")
+    assert set(rule) == {"─"}
+
+
+def test_summarize_input_display_for_short_text() -> None:
+    assert summarize_input_display("hello") is None
+
+
+def test_summarize_input_display_for_long_text() -> None:
+    assert summarize_input_display("a" * 500) == "500c"
+
+
+def test_summarize_input_display_for_multiline_text() -> None:
+    assert summarize_input_display("hello\nworld") == "11c"
+
+
+def test_prompt_rprompt_contains_status_text() -> None:
+    toolbar = prompt_rprompt(AppConfig(model="deepseek-v4-flash", style="explain"))
+    rendered = toolbar.value if hasattr(toolbar, "value") else str(toolbar)
+
+    assert "deepseek-v4-flash" in rendered
+    assert "explain" in rendered
