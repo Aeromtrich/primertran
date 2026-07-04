@@ -9,6 +9,7 @@ from primertran.repl import (
     exceeds_input_line,
     format_translation_line,
     input_bottom_rule,
+    is_source_label,
     is_long_or_multiline,
     print_translation_output,
     print_submitted_input,
@@ -53,15 +54,16 @@ def test_build_banner_contains_session_info() -> None:
         console.print(banner)
 
     output = capture.get()
-    assert "Session" in output
-    assert "Type   /help" in output
-    assert "│" in output
+    assert "PrimerTran" in output
+    assert "deepseek-v4-flash" in output
+    assert "/help" in output
+    assert "Esc Esc clear" in output
 
 
-def test_input_bottom_rule_matches_horizontal_rule() -> None:
+def test_input_bottom_rule_matches_prompt_rule() -> None:
     rule = input_bottom_rule()
 
-    assert set(rule) == {"─"}
+    assert set(rule) == {"·"}
 
 
 def test_summarize_input_display_for_short_text() -> None:
@@ -90,6 +92,7 @@ def test_print_submitted_input_outputs_full_text() -> None:
         print_submitted_input("first line\nsecond line")
 
     output = capture.get()
+    assert "input · 22c" in output
     assert "› first line" in output
     assert "  second line" in output
 
@@ -101,6 +104,12 @@ def test_format_translation_line_styles_template_labels() -> None:
     assert format_translation_line("技术解释：").spans[0].style == "bold yellow"
 
 
+def test_is_source_label() -> None:
+    assert is_source_label("原句：")
+    assert is_source_label("原句：Hello")
+    assert not is_source_label("翻译：")
+
+
 def test_format_translation_line_avoids_white_styles() -> None:
     assert format_translation_line("translated body").spans[0].style == "blue"
     assert format_translation_line("- explanation").spans[0].style == "magenta"
@@ -108,13 +117,15 @@ def test_format_translation_line_avoids_white_styles() -> None:
 
 def test_print_translation_output_keeps_text_visible() -> None:
     with console.capture() as capture:
-        print_translation_output("原句：\nHello\n翻译：\n你好")
+        print_translation_output("原句：\nHello\n翻译：\n你好\n原句：\nWorld")
 
     output = capture.get()
     assert "原句：" in output
     assert "Hello" in output
     assert "翻译：" in output
     assert "你好" in output
+    assert "World" in output
+    assert "─" in output
 
 
 def test_prompt_rprompt_contains_status_text() -> None:
@@ -123,3 +134,4 @@ def test_prompt_rprompt_contains_status_text() -> None:
 
     assert "deepseek-v4-flash" in rendered
     assert "explain" in rendered
+    assert "Esc Esc clear" in rendered

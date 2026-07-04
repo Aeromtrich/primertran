@@ -14,6 +14,7 @@ from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.processors import Processor, Transformation, TransformationInput
+from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 from rich.console import Console
 from rich.panel import Panel
@@ -41,9 +42,7 @@ INPUT_RULE_WIDTH = 56
 INPUT_PROMPT = "› "
 INPUT_VISIBLE_WIDTH = INPUT_RULE_WIDTH - get_cwidth(INPUT_PROMPT)
 INPUT_SUMMARY_SUFFIX = "c"
-BANNER_WIDTH = 72
-BANNER_LEFT_WIDTH = 31
-BANNER_RIGHT_WIDTH = 32
+OUTPUT_RULE_WIDTH = 28
 
 BANNER_TITLE = "PrimerTran"
 BANNER_SUBTITLE = "English -> Chinese Agent"
@@ -111,47 +110,25 @@ def run_repl() -> None:
 
 def show_banner(config: AppConfig, *, compact: bool = False) -> None:
     if compact:
-        console.print("[bold cyan]PrimerTran[/bold cyan] [dim]English -> Chinese Agent[/dim]")
-        console.print("[dim]Type /help for commands. Paste long text directly; PrimerTran will compact the preview.[/dim]\n")
+        console.print(build_banner(config))
+        console.print()
         return
     console.print(build_banner(config))
     console.print()
 
 
-def build_banner(config: AppConfig) -> Panel:
-    left_lines = [
-        BANNER_TITLE,
-        "Welcome back!",
-        BANNER_SUBTITLE,
-        "",
-        "Ready for translation",
-    ]
-    right_lines = [
-        "Session",
-        f"Model  {config.model}",
-        f"Style  {config.style}",
-        "Type   /help",
-        "Enter to send",
-    ]
-
+def build_banner(config: AppConfig) -> Text:
     body = Text()
-    for index, (left, right) in enumerate(zip(left_lines, right_lines)):
-        if index:
-            body.append("\n")
-        body.append(f"{left:<{BANNER_LEFT_WIDTH}}", style="bold" if index < 2 else "dim")
-        body.append(" │ ", style="red")
-        body.append(f"{right:<{BANNER_RIGHT_WIDTH}}", style="bold red" if index == 0 else "")
-
-    return Panel(
-        body,
-        border_style="red",
-        padding=(0, 1),
-        width=min(BANNER_WIDTH, max(console.width, INPUT_RULE_WIDTH)),
-    )
+    body.append(BANNER_TITLE, style="bold cyan")
+    body.append("  ")
+    body.append(BANNER_SUBTITLE, style="blue")
+    body.append("\n")
+    body.append(f"{config.model} · {config.style} · /help · Esc Esc clear", style="magenta")
+    return body
 
 
 def input_rule() -> str:
-    return "─" * INPUT_RULE_WIDTH
+    return "·" * INPUT_RULE_WIDTH
 
 
 def input_bottom_rule() -> str:
@@ -213,7 +190,15 @@ def prompt_with_frame(config: AppConfig) -> str:
         ),
         focused_element=input_control,
     )
-    app = Application(layout=layout, key_bindings=bindings, full_screen=False, mouse_support=False)
+    style = Style.from_dict(
+        {
+            "line": "ansiblack",
+            "prompt": "ansicyan bold",
+            "input": "ansimagenta bold",
+            "meta": "ansiblue",
+        }
+    )
+    app = Application(layout=layout, key_bindings=bindings, full_screen=False, mouse_support=False, style=style)
     return app.run()
 
 
@@ -286,7 +271,7 @@ def show_help() -> None:
 /reset     重置本地配置
 /multi     粘贴多行英文内容，使用 /end 结束
 
-提示：可以直接粘贴长文本。多行或较长输入会先显示压缩预览，再确认发送。
+提示：超过一行的输入会显示为字符数；按 Enter 直接发送，按 Esc Esc 清空输入。
 """
     console.print(Panel(help_text, title="PrimerTran Commands", border_style="cyan"))
 
@@ -372,9 +357,10 @@ def prepare_input(text: str) -> str:
 
 def print_submitted_input(text: str) -> None:
     console.print()
+    console.print(Text(f"input · {len(text)}c", style="magenta"))
     for index, line in enumerate(text.splitlines() or [text]):
         prefix = "› " if index == 0 else "  "
-        console.print(f"{prefix}{line}")
+        console.print(Text(f"{prefix}{line}", style="cyan"))
 
 
 def is_long_or_multiline(text: str) -> bool:
@@ -413,12 +399,19 @@ def prompt_rprompt(config: AppConfig) -> HTML:
         f"<style fg='ansibrightblack'>{cwd}</style>"
         f"<style fg='ansibrightblack'> · </style>"
         f"<style fg='ansibrightblack'>{config.style}</style>"
+        f"<style fg='ansibrightblack'> · </style>"
+        f"<style fg='ansiblue'>Enter send · Esc Esc clear</style>"
     )
 
 
 def print_translation_output(output: str) -> None:
+    seen_content = False
     for line in output.splitlines():
+        if is_source_label(line) and seen_content:
+            console.print(Text("─" * OUTPUT_RULE_WIDTH, style="blue"))
         console.print(format_translation_line(line))
+        if line.strip():
+            seen_content = True
 
 
 def format_translation_line(line: str) -> Text:
@@ -426,7 +419,7 @@ def format_translation_line(line: str) -> Text:
     text = Text(line)
     if not stripped:
         return text
-    if stripped in {"原句：", "原句:"} or stripped.startswith(("原句：", "原句:")):
+    if is_source_label(line):
         text.stylize("bold cyan")
     elif stripped in {"翻译：", "翻译:"} or stripped.startswith(("翻译：", "翻译:")):
         text.stylize("bold green")
@@ -440,6 +433,11 @@ def format_translation_line(line: str) -> Text:
     else:
         text.stylize("blue")
     return text
+
+
+def is_source_label(line: str) -> bool:
+    stripped = line.strip()
+    return stripped in {"原句：", "原句:"} or stripped.startswith(("原句：", "原句:"))
 
 
 def shorten_path(path: Path, max_length: int = 56) -> str:
