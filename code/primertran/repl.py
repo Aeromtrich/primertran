@@ -19,6 +19,7 @@ from prompt_toolkit.layout.processors import Processor, Transformation, Transfor
 from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 from rich.console import Console
+from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.text import Text
 
@@ -39,12 +40,19 @@ from primertran.providers import ProviderError
 console = Console()
 LONG_INPUT_PREVIEW = 180
 LONG_INPUT_THRESHOLD = 500
-INPUT_RULE_WIDTH = 56
+MIN_INPUT_RULE_WIDTH = 40
 INPUT_PROMPT = "› "
-INPUT_VISIBLE_WIDTH = INPUT_RULE_WIDTH - get_cwidth(INPUT_PROMPT)
 INPUT_SUMMARY_SUFFIX = "c"
 INPUT_FRAME_HEIGHT = 4
 OUTPUT_RULE_WIDTH = 28
+BANNER_WIDTH = 72
+DOG_MASCOT = (
+    r" / \__",
+    r"(    @\___",
+    r" /         O",
+    r"/   (_____/",
+    r"/_____/   U",
+)
 
 BANNER_TITLE = "PrimerTran"
 BANNER_SUBTITLE = "English -> Chinese Agent"
@@ -96,7 +104,6 @@ def run_repl() -> None:
             console.print("\n已退出 PrimerTran。")
             return
 
-        clear_prompt_frame()
         text = raw.strip()
         if not text:
             continue
@@ -120,18 +127,48 @@ def show_banner(config: AppConfig, *, compact: bool = False) -> None:
     console.print()
 
 
-def build_banner(config: AppConfig) -> Text:
+def build_banner(config: AppConfig) -> Panel:
+    right_lines = [
+        BANNER_TITLE,
+        BANNER_SUBTITLE,
+        f"model  {config.model}",
+        f"style  {config.style}",
+        "paste long text · Enter send",
+        "Esc Esc clear · /help",
+    ]
+
     body = Text()
-    body.append(BANNER_TITLE, style="bold cyan")
-    body.append("  ")
-    body.append(BANNER_SUBTITLE, style="blue")
-    body.append("\n")
-    body.append(f"{config.model} · {config.style} · /help · Esc Esc clear", style="magenta")
-    return body
+    rows = max(len(DOG_MASCOT), len(right_lines))
+    for index in range(rows):
+        if index:
+            body.append("\n")
+        mascot = DOG_MASCOT[index] if index < len(DOG_MASCOT) else ""
+        detail = right_lines[index] if index < len(right_lines) else ""
+        body.append(f"{mascot:<14}", style="cyan")
+        body.append("  ")
+        style = "bold cyan" if index == 0 else "blue"
+        if index >= 2:
+            style = "magenta"
+        body.append(detail, style=style)
+
+    return Panel(
+        body,
+        border_style="red",
+        padding=(0, 1),
+        width=min(BANNER_WIDTH, max(console.width, MIN_INPUT_RULE_WIDTH)),
+    )
+
+
+def input_rule_width() -> int:
+    return max(MIN_INPUT_RULE_WIDTH, console.width - 1)
+
+
+def input_visible_width() -> int:
+    return max(1, input_rule_width() - get_cwidth(INPUT_PROMPT))
 
 
 def input_rule() -> str:
-    return "·" * INPUT_RULE_WIDTH
+    return "─" * input_rule_width()
 
 
 def input_bottom_rule() -> str:
@@ -201,17 +238,15 @@ def prompt_with_frame(config: AppConfig) -> str:
             "meta": "ansiblue",
         }
     )
-    app = Application(layout=layout, key_bindings=bindings, full_screen=False, mouse_support=False, style=style)
+    app = Application(
+        layout=layout,
+        key_bindings=bindings,
+        full_screen=False,
+        mouse_support=False,
+        style=style,
+        erase_when_done=True,
+    )
     return app.run()
-
-
-def clear_prompt_frame() -> None:
-    console.file.write(prompt_frame_clear_sequence())
-    console.file.flush()
-
-
-def prompt_frame_clear_sequence(lines: int = INPUT_FRAME_HEIGHT) -> str:
-    return f"\x1b[{lines}A\x1b[J"
 
 
 def summarize_input_display(text: str) -> str | None:
@@ -222,8 +257,9 @@ def summarize_input_display(text: str) -> str | None:
     return None
 
 
-def exceeds_input_line(text: str, max_width: int = INPUT_VISIBLE_WIDTH) -> bool:
-    return any(get_cwidth(line) > max_width for line in text.splitlines() or [text])
+def exceeds_input_line(text: str, max_width: int | None = None) -> bool:
+    width = input_visible_width() if max_width is None else max_width
+    return any(get_cwidth(line) > width for line in text.splitlines() or [text])
 
 
 def configure_first_run(config: AppConfig) -> None:

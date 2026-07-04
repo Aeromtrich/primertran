@@ -10,12 +10,13 @@ from primertran.repl import (
     format_elapsed,
     format_translation_line,
     input_bottom_rule,
+    input_rule_width,
+    input_visible_width,
     is_source_label,
     is_long_or_multiline,
     print_translation_output,
     print_translation_stream,
     print_submitted_input,
-    prompt_frame_clear_sequence,
     prompt_rprompt,
     shorten_path,
     show_banner,
@@ -48,7 +49,8 @@ def test_show_banner_prints_compact_panel() -> None:
     assert "PrimerTran" in output
     assert BANNER_SUBTITLE in output
     assert "deepseek-v4-flash" in output
-    assert "Style  explain" in output
+    assert "style  explain" in output
+    assert "(    @" in output
 
 
 def test_build_banner_contains_session_info() -> None:
@@ -62,6 +64,7 @@ def test_build_banner_contains_session_info() -> None:
     assert "deepseek-v4-flash" in output
     assert "/help" in output
     assert "Esc Esc clear" in output
+    assert "(    @" in output
 
 
 def test_show_help_prints_lightweight_command_list() -> None:
@@ -78,12 +81,16 @@ def test_show_help_prints_lightweight_command_list() -> None:
 def test_input_bottom_rule_matches_prompt_rule() -> None:
     rule = input_bottom_rule()
 
-    assert set(rule) == {"·"}
+    assert set(rule) == {"─"}
+    assert len(rule) == input_rule_width()
 
 
-def test_prompt_frame_clear_sequence_moves_up_and_clears() -> None:
-    assert prompt_frame_clear_sequence() == "\x1b[4A\x1b[J"
-    assert prompt_frame_clear_sequence(2) == "\x1b[2A\x1b[J"
+def test_input_rule_width_tracks_terminal_width() -> None:
+    if console.width > 40:
+        assert input_rule_width() == console.width - 1
+    else:
+        assert input_rule_width() == 40
+    assert input_visible_width() < input_rule_width()
 
 
 def test_summarize_input_display_for_short_text() -> None:
@@ -95,7 +102,7 @@ def test_summarize_input_display_for_long_text() -> None:
 
 
 def test_summarize_input_display_for_text_exceeding_one_line() -> None:
-    assert summarize_input_display("a" * 55) == "55c"
+    assert summarize_input_display("a" * (input_visible_width() + 1)).endswith("c")
 
 
 def test_summarize_input_display_for_multiline_text() -> None:
@@ -103,8 +110,8 @@ def test_summarize_input_display_for_multiline_text() -> None:
 
 
 def test_exceeds_input_line() -> None:
-    assert exceeds_input_line("a" * 55)
-    assert not exceeds_input_line("short text")
+    assert exceeds_input_line("a" * 6, max_width=5)
+    assert not exceeds_input_line("short text", max_width=20)
 
 
 def test_print_submitted_input_outputs_full_text() -> None:
