@@ -43,6 +43,7 @@ INPUT_RULE_WIDTH = 56
 INPUT_PROMPT = "› "
 INPUT_VISIBLE_WIDTH = INPUT_RULE_WIDTH - get_cwidth(INPUT_PROMPT)
 INPUT_SUMMARY_SUFFIX = "c"
+INPUT_FRAME_HEIGHT = 4
 OUTPUT_RULE_WIDTH = 28
 
 BANNER_TITLE = "PrimerTran"
@@ -95,6 +96,7 @@ def run_repl() -> None:
             console.print("\n已退出 PrimerTran。")
             return
 
+        clear_prompt_frame()
         text = raw.strip()
         if not text:
             continue
@@ -201,6 +203,15 @@ def prompt_with_frame(config: AppConfig) -> str:
     )
     app = Application(layout=layout, key_bindings=bindings, full_screen=False, mouse_support=False, style=style)
     return app.run()
+
+
+def clear_prompt_frame() -> None:
+    console.file.write(prompt_frame_clear_sequence())
+    console.file.flush()
+
+
+def prompt_frame_clear_sequence(lines: int = INPUT_FRAME_HEIGHT) -> str:
+    return f"\x1b[{lines}A\x1b[J"
 
 
 def summarize_input_display(text: str) -> str | None:

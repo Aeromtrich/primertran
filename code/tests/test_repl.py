@@ -15,6 +15,7 @@ from primertran.repl import (
     print_translation_output,
     print_translation_stream,
     print_submitted_input,
+    prompt_frame_clear_sequence,
     prompt_rprompt,
     shorten_path,
     show_banner,
@@ -78,6 +79,11 @@ def test_input_bottom_rule_matches_prompt_rule() -> None:
     rule = input_bottom_rule()
 
     assert set(rule) == {"·"}
+
+
+def test_prompt_frame_clear_sequence_moves_up_and_clears() -> None:
+    assert prompt_frame_clear_sequence() == "\x1b[4A\x1b[J"
+    assert prompt_frame_clear_sequence(2) == "\x1b[2A\x1b[J"
 
 
 def test_summarize_input_display_for_short_text() -> None:
