@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 
 from primertran.providers.base import BaseProvider, ProviderError
@@ -30,6 +32,32 @@ class DeepSeekProvider(BaseProvider):
 
         message = response.choices[0].message.content if response.choices else ""
         return (message or "").strip()
+
+    def translate_stream(self, *, system_prompt: str, user_prompt: str, model: str) -> Iterator[str]:
+        try:
+            stream = self.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+                stream=True,
+            )
+            for chunk in stream:
+                if not chunk.choices:
+                    continue
+                content = chunk.choices[0].delta.content
+                if content:
+                    yield content
+        except APITimeoutError as exc:
+            raise ProviderError("本次请求超时，可稍后重试。") from exc
+        except APIConnectionError as exc:
+            raise ProviderError("网络请求失败，请检查网络或稍后重试。") from exc
+        except APIStatusError as exc:
+            raise ProviderError(_status_message(exc.status_code)) from exc
+        except Exception as exc:
+            raise ProviderError("翻译请求失败，请稍后重试。") from exc
 
 
 def _status_message(status_code: int) -> str:

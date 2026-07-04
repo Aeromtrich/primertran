@@ -7,15 +7,18 @@ from primertran.repl import (
     compact_preview,
     console,
     exceeds_input_line,
+    format_elapsed,
     format_translation_line,
     input_bottom_rule,
     is_source_label,
     is_long_or_multiline,
     print_translation_output,
+    print_translation_stream,
     print_submitted_input,
     prompt_rprompt,
     shorten_path,
     show_banner,
+    show_help,
     summarize_input_display,
 )
 
@@ -58,6 +61,17 @@ def test_build_banner_contains_session_info() -> None:
     assert "deepseek-v4-flash" in output
     assert "/help" in output
     assert "Esc Esc clear" in output
+
+
+def test_show_help_prints_lightweight_command_list() -> None:
+    with console.capture() as capture:
+        show_help()
+
+    output = capture.get()
+    assert "commands" in output
+    assert "/help" in output
+    assert "show commands" in output
+    assert "Enter send" in output
 
 
 def test_input_bottom_rule_matches_prompt_rule() -> None:
@@ -126,6 +140,23 @@ def test_print_translation_output_keeps_text_visible() -> None:
     assert "你好" in output
     assert "World" in output
     assert "─" in output
+
+
+def test_print_translation_stream_buffers_until_line_breaks() -> None:
+    with console.capture() as capture:
+        output = print_translation_stream(["原", "句：\nHel", "lo\n翻译：\n你好"])
+
+    rendered = capture.get()
+    assert output == "原句：\nHello\n翻译：\n你好"
+    assert "原句：" in rendered
+    assert "Hello" in rendered
+    assert "翻译：" in rendered
+    assert "你好" in rendered
+
+
+def test_format_elapsed() -> None:
+    assert format_elapsed(1.24) == "1.2s"
+    assert format_elapsed(12.4) == "12s"
 
 
 def test_prompt_rprompt_contains_status_text() -> None:

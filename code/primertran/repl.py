@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import time
+from collections.abc import Iterable
 from getpass import getpass
 from pathlib import Path
 from textwrap import shorten
@@ -17,7 +19,6 @@ from prompt_toolkit.layout.processors import Processor, Transformation, Transfor
 from prompt_toolkit.styles import Style
 from prompt_toolkit.utils import get_cwidth
 from rich.console import Console
-from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.text import Text
 
@@ -258,22 +259,27 @@ def handle_command(command: str, config: AppConfig, session: PromptSession) -> b
 
 
 def show_help() -> None:
-    help_text = """\
-/help      查看帮助和可用命令
-/exit      退出 PrimerTran
-/quit      退出 PrimerTran
-/clear     清屏，并重新显示 Banner
-/key       设置或更新当前 provider 的 API Key
-/provider  查看或切换模型服务商
-/model     查看或切换当前模型
-/style     切换输出风格
-/config    查看当前配置摘要
-/reset     重置本地配置
-/multi     粘贴多行英文内容，使用 /end 结束
+    commands = [
+        ("/help", "show commands"),
+        ("/clear", "clear screen"),
+        ("/key", "update API key"),
+        ("/provider", "switch provider"),
+        ("/model", "switch model"),
+        ("/style", "switch output style"),
+        ("/config", "show config"),
+        ("/reset", "reset local config"),
+        ("/multi", "multi-line input, finish with /end"),
+        ("/exit", "quit"),
+    ]
 
-提示：超过一行的输入会显示为字符数；按 Enter 直接发送，按 Esc Esc 清空输入。
-"""
-    console.print(Panel(help_text, title="PrimerTran Commands", border_style="cyan"))
+    console.print()
+    console.print(Text("commands", style="magenta"))
+    for command, description in commands:
+        line = Text()
+        line.append(f"{command:<10}", style="cyan")
+        line.append(description, style="blue")
+        console.print(line)
+    console.print(Text("Enter send · Esc Esc clear · long input folds to character count", style="magenta"))
 
 
 def update_key(config: AppConfig) -> None:
@@ -378,16 +384,18 @@ def translate_and_print(config: AppConfig, text: str) -> None:
         return
 
     agent = TranslatorAgent(config)
+    started_at = time.perf_counter()
     try:
-        with console.status("正在翻译...", spinner="dots"):
-            output = agent.translate(text)
+        console.print(Text(f"translating · {config.model}", style="magenta"))
+        output = print_translation_stream(agent.translate_stream(text))
     except TranslationInputError as exc:
         console.print(f"[yellow]{exc}[/yellow]")
     except ProviderError as exc:
         console.print(f"[red]{exc}[/red]")
     else:
-        console.print()
-        print_translation_output(output)
+        if output:
+            console.print()
+        console.print(Text(f"done · {format_elapsed(time.perf_counter() - started_at)}", style="magenta"))
         console.print()
 
 
@@ -404,14 +412,47 @@ def prompt_rprompt(config: AppConfig) -> HTML:
     )
 
 
+def format_elapsed(seconds: float) -> str:
+    if seconds < 10:
+        return f"{seconds:.1f}s"
+    return f"{seconds:.0f}s"
+
+
 def print_translation_output(output: str) -> None:
-    seen_content = False
+    renderer = TranslationOutputRenderer()
     for line in output.splitlines():
-        if is_source_label(line) and seen_content:
+        renderer.print_line(line)
+
+
+def print_translation_stream(chunks: Iterable[str]) -> str:
+    renderer = TranslationOutputRenderer()
+    pending = ""
+    output_parts: list[str] = []
+
+    for chunk in chunks:
+        if not chunk:
+            continue
+        output_parts.append(chunk)
+        pending += chunk
+        while "\n" in pending:
+            line, pending = pending.split("\n", 1)
+            renderer.print_line(line)
+
+    if pending:
+        renderer.print_line(pending)
+    return "".join(output_parts)
+
+
+class TranslationOutputRenderer:
+    def __init__(self) -> None:
+        self.seen_content = False
+
+    def print_line(self, line: str) -> None:
+        if is_source_label(line) and self.seen_content:
             console.print(Text("─" * OUTPUT_RULE_WIDTH, style="blue"))
         console.print(format_translation_line(line))
         if line.strip():
-            seen_content = True
+            self.seen_content = True
 
 
 def format_translation_line(line: str) -> Text:

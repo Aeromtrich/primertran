@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 
 from primertran.config import AppConfig
 from primertran.prompts import SYSTEM_PROMPT, build_user_prompt
@@ -18,20 +19,33 @@ class TranslatorAgent:
         self.config = config
 
     def translate(self, text: str) -> str:
-        cleaned = text.strip()
-        if not cleaned:
-            raise TranslationInputError("请输入需要翻译的英文内容。")
-        if len(cleaned) > MAX_INPUT_LENGTH:
-            raise TranslationInputError("输入过长，请拆分为 8000 字符以内后再翻译。")
-        if not looks_like_english(cleaned):
-            raise TranslationInputError("请输入需要翻译的英文内容。")
-
+        cleaned = validate_translation_input(text)
         provider = create_provider(self.config)
         return provider.translate(
             system_prompt=SYSTEM_PROMPT,
             user_prompt=build_user_prompt(cleaned, self.config.style),
             model=self.config.model,
         )
+
+    def translate_stream(self, text: str) -> Iterator[str]:
+        cleaned = validate_translation_input(text)
+        provider = create_provider(self.config)
+        return provider.translate_stream(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=build_user_prompt(cleaned, self.config.style),
+            model=self.config.model,
+        )
+
+
+def validate_translation_input(text: str) -> str:
+    cleaned = text.strip()
+    if not cleaned:
+        raise TranslationInputError("请输入需要翻译的英文内容。")
+    if len(cleaned) > MAX_INPUT_LENGTH:
+        raise TranslationInputError("输入过长，请拆分为 8000 字符以内后再翻译。")
+    if not looks_like_english(cleaned):
+        raise TranslationInputError("请输入需要翻译的英文内容。")
+    return cleaned
 
 
 def looks_like_english(text: str) -> bool:
