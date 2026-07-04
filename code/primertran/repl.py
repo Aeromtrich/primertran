@@ -130,11 +130,9 @@ def show_banner(config: AppConfig, *, compact: bool = False) -> None:
 def build_banner(config: AppConfig) -> Panel:
     right_lines = [
         BANNER_TITLE,
-        BANNER_SUBTITLE,
+        "English -> Chinese",
         f"model  {config.model}",
-        f"style  {config.style}",
-        "paste long text · Enter send",
-        "Esc Esc clear · /help",
+        "/help  commands",
     ]
 
     body = Text()
@@ -320,10 +318,11 @@ def show_help() -> None:
 
     console.print()
     console.print(Text("commands", style="magenta"))
-    for command, description in commands:
+    for index in range(0, len(commands), 2):
         line = Text()
-        line.append(f"{command:<10}", style="cyan")
-        line.append(description, style="blue")
+        for command, description in commands[index : index + 2]:
+            line.append(f"{command:<9}", style="cyan")
+            line.append(f"{description:<30}", style="blue")
         console.print(line)
     console.print(Text("Enter send · Esc Esc clear · long input folds to character count", style="magenta"))
 
@@ -459,15 +458,11 @@ def translate_and_print(config: AppConfig, text: str) -> None:
 
 
 def prompt_rprompt(config: AppConfig) -> HTML:
-    cwd = shorten_path(Path.cwd())
+    cwd = str(Path.cwd())
     return HTML(
         f"<style fg='ansibrightblack'>{config.model}</style>"
         f"<style fg='ansibrightblack'> · </style>"
         f"<style fg='ansibrightblack'>{cwd}</style>"
-        f"<style fg='ansibrightblack'> · </style>"
-        f"<style fg='ansibrightblack'>{config.style}</style>"
-        f"<style fg='ansibrightblack'> · </style>"
-        f"<style fg='ansiblue'>Enter send · Esc Esc clear</style>"
     )
 
 

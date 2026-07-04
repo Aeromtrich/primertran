@@ -2,7 +2,6 @@ from pathlib import Path
 
 from primertran.config import AppConfig
 from primertran.repl import (
-    BANNER_SUBTITLE,
     build_banner,
     clear_terminal_command,
     compact_preview,
@@ -48,9 +47,9 @@ def test_show_banner_prints_compact_panel() -> None:
 
     output = capture.get()
     assert "PrimerTran" in output
-    assert BANNER_SUBTITLE in output
+    assert "English -> Chinese" in output
     assert "deepseek-v4-flash" in output
-    assert "style  explain" in output
+    assert "/help  commands" in output
     assert "(    @" in output
 
 
@@ -64,7 +63,7 @@ def test_build_banner_contains_session_info() -> None:
     assert "PrimerTran" in output
     assert "deepseek-v4-flash" in output
     assert "/help" in output
-    assert "Esc Esc clear" in output
+    assert "commands" in output
     assert "(    @" in output
 
 
@@ -183,5 +182,6 @@ def test_prompt_rprompt_contains_status_text() -> None:
     rendered = toolbar.value if hasattr(toolbar, "value") else str(toolbar)
 
     assert "deepseek-v4-flash" in rendered
-    assert "explain" in rendered
-    assert "Esc Esc clear" in rendered
+    assert str(Path.cwd()) in rendered
+    assert "explain" not in rendered
+    assert "Esc Esc clear" not in rendered
