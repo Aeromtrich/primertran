@@ -14,6 +14,7 @@ from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.processors import Processor, Transformation, TransformationInput
+from prompt_toolkit.utils import get_cwidth
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
@@ -37,6 +38,8 @@ console = Console()
 LONG_INPUT_PREVIEW = 180
 LONG_INPUT_THRESHOLD = 500
 INPUT_RULE_WIDTH = 56
+INPUT_PROMPT = "› "
+INPUT_VISIBLE_WIDTH = INPUT_RULE_WIDTH - get_cwidth(INPUT_PROMPT)
 INPUT_SUMMARY_SUFFIX = "c"
 BANNER_WIDTH = 72
 BANNER_LEFT_WIDTH = 31
@@ -172,6 +175,10 @@ def prompt_with_frame(config: AppConfig) -> str:
         if not buffer.text:
             raise EOFError
 
+    @bindings.add("escape", "escape")
+    def _(event) -> None:
+        buffer.reset()
+
     input_control = BufferControl(
         buffer=buffer,
         input_processors=[CompactInputDisplayProcessor()],
@@ -189,7 +196,7 @@ def prompt_with_frame(config: AppConfig) -> str:
                     height=Dimension.exact(1),
                     dont_extend_height=True,
                     wrap_lines=False,
-                    get_line_prefix=lambda line_number, wrap_count: [("class:prompt", "› ")],
+                    get_line_prefix=lambda line_number, wrap_count: [("class:prompt", INPUT_PROMPT)],
                 ),
                 Window(
                     content=FormattedTextControl([("class:line", input_bottom_rule())]),
@@ -213,9 +220,13 @@ def prompt_with_frame(config: AppConfig) -> str:
 def summarize_input_display(text: str) -> str | None:
     if not text:
         return None
-    if "\n" in text or len(text) >= LONG_INPUT_THRESHOLD:
+    if "\n" in text or len(text) >= LONG_INPUT_THRESHOLD or exceeds_input_line(text):
         return f"{len(text)}{INPUT_SUMMARY_SUFFIX}"
     return None
+
+
+def exceeds_input_line(text: str, max_width: int = INPUT_VISIBLE_WIDTH) -> bool:
+    return any(get_cwidth(line) > max_width for line in text.splitlines() or [text])
 
 
 def configure_first_run(config: AppConfig) -> None:
@@ -352,26 +363,18 @@ def read_multiline(session: PromptSession) -> str:
 
 
 def prepare_input(text: str) -> str:
-    if not is_long_or_multiline(text):
-        return text
-
-    preview = compact_preview(text)
-    line_count = text.count("\n") + 1
-    console.print()
-    console.print(
-        Panel(
-            f"{preview}\n\n[dim]{line_count} lines · {len(text)} chars[/dim]",
-            title="Input Preview",
-            border_style="cyan",
-        )
-    )
     if len(text) > MAX_INPUT_LENGTH:
         console.print(f"[yellow]输入超过 {MAX_INPUT_LENGTH} 字符，请拆分后再翻译。[/yellow]")
         return ""
-    if not Confirm.ask("发送这段内容进行翻译？", default=True):
-        console.print("[yellow]已取消。[/yellow]")
-        return ""
+    print_submitted_input(text)
     return text
+
+
+def print_submitted_input(text: str) -> None:
+    console.print()
+    for index, line in enumerate(text.splitlines() or [text]):
+        prefix = "› " if index == 0 else "  "
+        console.print(f"{prefix}{line}")
 
 
 def is_long_or_multiline(text: str) -> bool:

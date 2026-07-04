@@ -6,8 +6,10 @@ from primertran.repl import (
     build_banner,
     compact_preview,
     console,
+    exceeds_input_line,
     input_bottom_rule,
     is_long_or_multiline,
+    print_submitted_input,
     prompt_rprompt,
     shorten_path,
     show_banner,
@@ -68,8 +70,26 @@ def test_summarize_input_display_for_long_text() -> None:
     assert summarize_input_display("a" * 500) == "500c"
 
 
+def test_summarize_input_display_for_text_exceeding_one_line() -> None:
+    assert summarize_input_display("a" * 55) == "55c"
+
+
 def test_summarize_input_display_for_multiline_text() -> None:
     assert summarize_input_display("hello\nworld") == "11c"
+
+
+def test_exceeds_input_line() -> None:
+    assert exceeds_input_line("a" * 55)
+    assert not exceeds_input_line("short text")
+
+
+def test_print_submitted_input_outputs_full_text() -> None:
+    with console.capture() as capture:
+        print_submitted_input("first line\nsecond line")
+
+    output = capture.get()
+    assert "› first line" in output
+    assert "  second line" in output
 
 
 def test_prompt_rprompt_contains_status_text() -> None:
