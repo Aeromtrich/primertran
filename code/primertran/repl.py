@@ -282,8 +282,7 @@ def handle_command(command: str, config: AppConfig, session: PromptSession) -> b
     if name == "/help":
         show_help()
     elif name == "/clear":
-        os.system("cls" if os.name == "nt" else "clear")
-        show_banner(config)
+        reset_session(config)
     elif name == "/key":
         update_key(config)
     elif name == "/provider":
@@ -308,7 +307,7 @@ def handle_command(command: str, config: AppConfig, session: PromptSession) -> b
 def show_help() -> None:
     commands = [
         ("/help", "show commands"),
-        ("/clear", "clear screen"),
+        ("/clear", "start a fresh session"),
         ("/key", "update API key"),
         ("/provider", "switch provider"),
         ("/model", "switch model"),
@@ -327,6 +326,19 @@ def show_help() -> None:
         line.append(description, style="blue")
         console.print(line)
     console.print(Text("Enter send · Esc Esc clear · long input folds to character count", style="magenta"))
+
+
+def reset_session(config: AppConfig) -> None:
+    clear_terminal()
+    show_banner(config)
+
+
+def clear_terminal() -> None:
+    os.system(clear_terminal_command())
+
+
+def clear_terminal_command() -> str:
+    return "cls" if os.name == "nt" else "clear"
 
 
 def update_key(config: AppConfig) -> None:

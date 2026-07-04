@@ -4,6 +4,7 @@ from primertran.config import AppConfig
 from primertran.repl import (
     BANNER_SUBTITLE,
     build_banner,
+    clear_terminal_command,
     compact_preview,
     console,
     exceeds_input_line,
@@ -75,7 +76,12 @@ def test_show_help_prints_lightweight_command_list() -> None:
     assert "commands" in output
     assert "/help" in output
     assert "show commands" in output
+    assert "start a fresh session" in output
     assert "Enter send" in output
+
+
+def test_clear_terminal_command_matches_platform() -> None:
+    assert clear_terminal_command() in {"clear", "cls"}
 
 
 def test_input_bottom_rule_matches_prompt_rule() -> None:
