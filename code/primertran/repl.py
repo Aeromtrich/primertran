@@ -401,7 +401,7 @@ def translate_and_print(config: AppConfig, text: str) -> None:
         console.print(f"[red]{exc}[/red]")
     else:
         console.print()
-        console.print(output)
+        print_translation_output(output)
         console.print()
 
 
@@ -414,6 +414,32 @@ def prompt_rprompt(config: AppConfig) -> HTML:
         f"<style fg='ansibrightblack'> · </style>"
         f"<style fg='ansibrightblack'>{config.style}</style>"
     )
+
+
+def print_translation_output(output: str) -> None:
+    for line in output.splitlines():
+        console.print(format_translation_line(line))
+
+
+def format_translation_line(line: str) -> Text:
+    stripped = line.strip()
+    text = Text(line)
+    if not stripped:
+        return text
+    if stripped in {"原句：", "原句:"} or stripped.startswith(("原句：", "原句:")):
+        text.stylize("bold cyan")
+    elif stripped in {"翻译：", "翻译:"} or stripped.startswith(("翻译：", "翻译:")):
+        text.stylize("bold green")
+    elif stripped in {"解释：", "解释:", "技术解释：", "技术解释:"} or stripped.startswith(
+        ("解释：", "解释:", "技术解释：", "技术解释:")
+    ):
+        text.stylize("bold yellow")
+    elif stripped.startswith(("- ", "* ")):
+        text.stylize("magenta")
+        text.stylize("yellow", 0, min(len(line), len(line) - len(line.lstrip()) + 1))
+    else:
+        text.stylize("blue")
+    return text
 
 
 def shorten_path(path: Path, max_length: int = 56) -> str:

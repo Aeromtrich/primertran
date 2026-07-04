@@ -7,8 +7,10 @@ from primertran.repl import (
     compact_preview,
     console,
     exceeds_input_line,
+    format_translation_line,
     input_bottom_rule,
     is_long_or_multiline,
+    print_translation_output,
     print_submitted_input,
     prompt_rprompt,
     shorten_path,
@@ -90,6 +92,29 @@ def test_print_submitted_input_outputs_full_text() -> None:
     output = capture.get()
     assert "› first line" in output
     assert "  second line" in output
+
+
+def test_format_translation_line_styles_template_labels() -> None:
+    assert format_translation_line("原句：").spans[0].style == "bold cyan"
+    assert format_translation_line("翻译：").spans[0].style == "bold green"
+    assert format_translation_line("解释：").spans[0].style == "bold yellow"
+    assert format_translation_line("技术解释：").spans[0].style == "bold yellow"
+
+
+def test_format_translation_line_avoids_white_styles() -> None:
+    assert format_translation_line("translated body").spans[0].style == "blue"
+    assert format_translation_line("- explanation").spans[0].style == "magenta"
+
+
+def test_print_translation_output_keeps_text_visible() -> None:
+    with console.capture() as capture:
+        print_translation_output("原句：\nHello\n翻译：\n你好")
+
+    output = capture.get()
+    assert "原句：" in output
+    assert "Hello" in output
+    assert "翻译：" in output
+    assert "你好" in output
 
 
 def test_prompt_rprompt_contains_status_text() -> None:
